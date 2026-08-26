@@ -20,14 +20,6 @@ VolytraFly is organised into setting groups:
 - **Inventory** - automatically replaces a worn-out elytra and keeps a hotbar slot stocked with fireworks.
 - **Autopilot** - flies forward automatically above a minimum height and can fire fireworks on an interval.
 
-## Building
-
-```bash
-./gradlew build
-```
-
-The compiled JAR will be in `build/libs`. Move it into your `mods` folder alongside the Meteor Client mod.
-
 ## Development
 
 - Run the `Minecraft Client` run configuration in your IDE to test the addon.
