@@ -21,12 +21,14 @@ repositories {
 
 dependencies {
     // Fabric
+    // 26.1.2 is unobfuscated, so there's no mappings() dependency and no "mod" prefix on
+    // these configurations anymore - modImplementation/modCompileOnly are only relevant to
+    // the old remapping Loom plugin used for 1.21.11 and earlier.
     minecraft(libs.minecraft)
-    mappings(variantOf(libs.yarn) { classifier("v2") })
-    modImplementation(libs.fabric.loader)
+    implementation(libs.fabric.loader)
 
     // Meteor
-    modImplementation(libs.meteor.client)
+    implementation(libs.meteor.client)
 }
 
 tasks {
@@ -54,13 +56,15 @@ tasks {
     }
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        // Minecraft 26.1.x requires Java 25 minimum for the Gradle JVM - see
+        // https://fabricmc.net/2026/03/14/261.html
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
     }
 
     withType<JavaCompile> {
         options.encoding = "UTF-8"
-        options.release = 21
+        options.release = 25
         options.compilerArgs.add("-Xlint:deprecation")
         options.compilerArgs.add("-Xlint:unchecked")
     }
