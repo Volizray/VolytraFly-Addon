@@ -645,8 +645,8 @@ public class VolytraFly extends Module {
         }
 
         if (noCrash.get() && player.isGliding()) {
-            Vec3d lookAheadPos = player.getEntityPos().add(player.getVelocity().normalize().multiply(crashLookAhead.get()));
-            RaycastContext raycastContext = new RaycastContext(player.getEntityPos(), new Vec3d(lookAheadPos.getX(), player.getY(), lookAheadPos.getZ()), RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player);
+            Vec3d lookAheadPos = player.getPos().add(player.getVelocity().normalize().multiply(crashLookAhead.get()));
+            RaycastContext raycastContext = new RaycastContext(player.getPos(), new Vec3d(lookAheadPos.getX(), player.getY(), lookAheadPos.getZ()), RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player);
             BlockHitResult hitResult = world.raycast(raycastContext);
             if (hitResult != null && hitResult.getType() == HitResult.Type.BLOCK) {
                 ((IVec3d) event.movement).meteor$set(0, velY, 0);
@@ -697,8 +697,8 @@ public class VolytraFly extends Module {
         String text = "VolytraFly: Waiting for chunks to load (render radius: " + mappingRenderRadius.get() + ")";
         int orange = 0xFFFFA500;
 
-        int x = (mc.getWindow().getScaledWidth() - mc.textRenderer.getWidth(text)) / 2;
-        int y = mc.getWindow().getScaledHeight() / 2 + 20;
+        int x = (event.drawContext.getScaledWindowWidth() - mc.textRenderer.getWidth(text)) / 2;
+        int y = event.drawContext.getScaledWindowHeight() / 2 + 20;
 
         event.drawContext.drawText(mc.textRenderer, text, x, y, orange, true);
     }
@@ -1182,15 +1182,15 @@ public class VolytraFly extends Module {
             if (player == self) continue;
             if (avoidanceIgnoreFriends.get() && Friends.get().isFriend(player)) continue;
 
-            if (accumulateThreat(player.getEntityPos(), avoidanceRadius.get(), acc)) foundThreat = true;
+            if (accumulateThreat(player.getPos(), avoidanceRadius.get(), acc)) foundThreat = true;
         }
 
         if (avoidWitherSkulls.get() || avoidArrows.get()) {
             for (Entity entity : world.getEntities()) {
                 if (avoidWitherSkulls.get() && entity instanceof WitherSkullEntity) {
-                    if (accumulateThreat(entity.getEntityPos(), witherSkullRadius.get(), acc)) foundThreat = true;
+                    if (accumulateThreat(entity.getPos(), witherSkullRadius.get(), acc)) foundThreat = true;
                 } else if (avoidArrows.get() && entity instanceof ArrowEntity) {
-                    if (accumulateThreat(entity.getEntityPos(), arrowRadius.get(), acc)) foundThreat = true;
+                    if (accumulateThreat(entity.getPos(), arrowRadius.get(), acc)) foundThreat = true;
                 }
             }
         }
@@ -1236,7 +1236,7 @@ public class VolytraFly extends Module {
             if (player == self) continue;
             if (avoidanceIgnoreFriends.get() && Friends.get().isFriend(player)) continue;
 
-            if (self.getEntityPos().squaredDistanceTo(player.getEntityPos()) < radiusSq) return true;
+            if (self.getPos().squaredDistanceTo(player.getPos()) < radiusSq) return true;
         }
 
         return false;
@@ -1259,7 +1259,7 @@ public class VolytraFly extends Module {
 
         for (Entity entity : world.getEntities()) {
             if (!(entity instanceof WitherSkullEntity)) continue;
-            if (self.getEntityPos().squaredDistanceTo(entity.getEntityPos()) < radiusSq) return true;
+            if (self.getPos().squaredDistanceTo(entity.getPos()) < radiusSq) return true;
         }
 
         return false;
@@ -1321,10 +1321,10 @@ public class VolytraFly extends Module {
         PlayerEntity player = mc.player;
         if (player == null) return false;
 
-        double distanceSq = player.getEntityPos().squaredDistanceTo(threatPos);
+        double distanceSq = player.getPos().squaredDistanceTo(threatPos);
         if (distanceSq >= radius * radius || distanceSq == 0) return false;
 
-        Vec3d awayFromThreat = player.getEntityPos().subtract(threatPos);
+        Vec3d awayFromThreat = player.getPos().subtract(threatPos);
         awayFromThreat = new Vec3d(awayFromThreat.x, 0, awayFromThreat.z);
         if (awayFromThreat.lengthSquared() == 0) return false;
 
@@ -1523,7 +1523,7 @@ public class VolytraFly extends Module {
         InputUtil.Key key = InputUtil.fromTranslationKey(binding.getBoundKeyTranslationKey());
         if (key.getCategory() != InputUtil.Type.KEYSYM) return binding.isPressed();
 
-        return InputUtil.isKeyPressed(mc.getWindow(), key.getCode());
+        return InputUtil.isKeyPressed(mc.getWindow().getHandle(), key.getCode());
     }
 
     /**
