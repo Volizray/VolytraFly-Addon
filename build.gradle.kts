@@ -10,6 +10,10 @@ base {
 
 repositories {
     maven {
+        name = "Fabric"
+        url = uri("https://maven.fabricmc.net/")
+    }
+    maven {
         name = "meteor-maven"
         url = uri("https://maven.meteordev.org/releases")
     }
@@ -24,9 +28,18 @@ dependencies {
     minecraft(libs.minecraft)
     mappings(variantOf(libs.yarn) { classifier("v2") })
     modImplementation(libs.fabric.loader)
+    modImplementation(libs.fabric.api)
 
     // Meteor
-    modImplementation(libs.meteor.client)
+    // Meteor only publishes a Maven artifact for the Minecraft version it is
+    // *currently* tracking - older versions (like 1.21.4) roll off
+    // meteor-maven-snapshots once development moves on, so the usual
+    // modImplementation(libs.meteor.client) coordinate won't resolve here.
+    // Instead, download "1.21.4 - build 42" from
+    // https://meteorclient.com/archive, place the jar at
+    // libs/meteor-client-1.21.4.jar, and Loom will remap it from
+    // intermediary to Yarn like any other mod dependency. See libs/README.md.
+    modImplementation(files("libs/meteor-client-${libs.versions.meteor.get()}.jar"))
 }
 
 tasks {
@@ -54,6 +67,10 @@ tasks {
     }
 
     java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
