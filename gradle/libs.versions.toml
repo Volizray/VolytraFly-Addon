@@ -2,22 +2,27 @@
 mod-version = "0.1.0"
 
 # Fabric (https://fabricmc.net/develop)
-minecraft = "1.21.11"
-yarn-mappings = "1.21.11+build.3"
-fabric-loader = "0.18.2"
+# Still unobfuscated (Mojang's official names directly) as of 26.2, so there is still no
+# separate Yarn mappings artifact - see https://fabricmc.net/2026/06/15/262.html
+minecraft = "26.2"
+fabric-loader = "0.19.3"
 
 # Loom (https://github.com/FabricMC/fabric-loom)
-loom = "1.14-SNAPSHOT"
+# Fabric's own recommendation for the 26.2 line at time of writing. Double check
+# https://fabricmc.net/develop for a newer patch before you build.
+loom = "1.17-SNAPSHOT"
 
 # Meteor (https://github.com/MeteorDevelopment/meteor-client/)
-meteor = "1.21.11-SNAPSHOT"
+# Meteor's 26.2 build is out (see https://meteorclient.com/), but double check
+# https://maven.meteordev.org/#/releases/meteordevelopment/meteor-client for the exact
+# artifact version string before you build - it may not follow "26.2-SNAPSHOT" exactly.
+meteor = "26.2-SNAPSHOT"
 
 # Mods
 
 [libraries]
 # Fabric base
 minecraft = { module = "com.mojang:minecraft", version.ref = "minecraft" }
-yarn = { module = "net.fabricmc:yarn", version.ref = "yarn-mappings" }
 fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-loader" }
 
 # Meteor client
@@ -26,4 +31,7 @@ meteor-client = { module = "meteordevelopment:meteor-client", version.ref = "met
 # Mods
 
 [plugins]
-fabric-loom = { id = "fabric-loom", version.ref = "loom" }
+# Non-obfuscated versions (26.1+, including 26.2) use the "net.fabricmc.fabric-loom" plugin id, which does
+# not remap Minecraft or mods at all. The legacy "fabric-loom" id is only for backwards
+# compatibility with obfuscated versions (1.21.11 and older).
+fabric-loom = { id = "net.fabricmc.fabric-loom", version.ref = "loom" }
