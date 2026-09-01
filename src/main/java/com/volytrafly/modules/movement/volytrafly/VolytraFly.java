@@ -5,12 +5,14 @@
 
 package com.volytrafly.modules.movement.volytrafly;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.PlayerMoveEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.mixininterface.IVec3d;
+// IVec3d -> IVec3 for 26.1.2, same as the other Yarn->Mojang renames below
+import meteordevelopment.meteorclient.mixininterface.IVec3;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -20,30 +22,31 @@ import meteordevelopment.meteorclient.systems.modules.player.ChestSwap;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerInteractionManager;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.projectile.ArrowEntity;
-import net.minecraft.entity.projectile.WitherSkullEntity;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.arrow.Arrow;
+import net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+
+import java.lang.reflect.Field;
 
 public class VolytraFly extends Module {
     private final SettingGroup sgAutopilot = settings.createGroup("Autopilot");
@@ -496,7 +499,7 @@ public class VolytraFly extends Module {
     private int jumpTimer;
     private double velX, velY, velZ;
     private double ticksLeft;
-    private Vec3d forward, right;
+    private Vec3 forward, right;
     private double acceleration;
     private boolean atMaxSpeed;
     private int accelerationDelayTicks;
@@ -514,7 +517,7 @@ public class VolytraFly extends Module {
 
     // Player avoidance state
     private boolean avoidanceSteering;
-    private Vec3d avoidanceLateralDir;
+    private Vec3 avoidanceLateralDir;
 
     private int avoidanceStuckTicksCount;
     private static final int VERTICAL_STEP_TIMEOUT_TICKS = 40; // safety net in case a step never reaches 1 block
@@ -542,11 +545,11 @@ public class VolytraFly extends Module {
 
         buildingModeEngaged = false;
 
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) return;
 
         if ((chestSwap.get() == ChestSwapMode.Always || chestSwap.get() == ChestSwapMode.WaitForGround)
-            && player.getEquippedStack(EquipmentSlot.CHEST).getItem() != Items.ELYTRA && isActive()) {
+            && player.getItemBySlot(EquipmentSlot.CHEST).getItem() != Items.ELYTRA && isActive()) {
             swapToChestSwap();
         }
     }
@@ -555,20 +558,20 @@ public class VolytraFly extends Module {
     public void onDeactivate() {
         mappingWaitingForChunks = false;
 
-        if (autoPilot.get()) mc.options.forwardKey.setPressed(false);
+        if (autoPilot.get()) mc.options.keyUp.setDown(false);
         releaseAvoidance();
         releaseVerticalStep();
 
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) return;
 
-        if (chestSwap.get() == ChestSwapMode.Always && player.getEquippedStack(EquipmentSlot.CHEST).getItem() == Items.ELYTRA) {
+        if (chestSwap.get() == ChestSwapMode.Always && player.getItemBySlot(EquipmentSlot.CHEST).getItem() == Items.ELYTRA) {
             swapToChestSwap();
         } else if (chestSwap.get() == ChestSwapMode.WaitForGround) {
             enableGroundListener();
         }
 
-        if (player.isGliding() && instaDrop.get()) {
+        if (player.isFallFlying() && instaDrop.get()) {
             enableInstaDropListener();
         }
     }
@@ -584,27 +587,27 @@ public class VolytraFly extends Module {
     @EventHandler
     @SuppressWarnings("unused")
     private void onPlayerMove(PlayerMoveEvent event) {
-        PlayerEntity player = mc.player;
-        ClientWorld world = mc.world;
+        Player player = mc.player;
+        ClientLevel world = mc.level;
         if (player == null || world == null) return;
 
-        if (!(player.getEquippedStack(EquipmentSlot.CHEST).contains(DataComponentTypes.GLIDER))) return;
+        if (!(player.getItemBySlot(EquipmentSlot.CHEST).has(DataComponents.GLIDER))) return;
 
         autoTakeoff();
         updatePlayerAvoidance();
 
-        if (player.isGliding()) {
+        if (player.isFallFlying()) {
             velX = 0;
             velY = event.movement.y;
             velZ = 0;
-            forward = Vec3d.fromPolar(0, player.getYaw()).multiply(0.1);
-            right = Vec3d.fromPolar(0, player.getYaw() + 90).multiply(0.1);
+            forward = Vec3.directionFromRotation(0, player.getYRot()).scale(0.1);
+            right = Vec3.directionFromRotation(0, player.getYRot() + 90).scale(0.1);
 
             // Handle stopInWater
-            if (player.isTouchingWater() && stopInWater.get()) {
-                ClientPlayNetworkHandler networkHandler = mc.getNetworkHandler();
+            if (player.isInWater() && stopInWater.get()) {
+                ClientPacketListener networkHandler = mc.getConnection();
                 if (networkHandler != null) {
-                    networkHandler.sendPacket(new ClientCommandC2SPacket(player, ClientCommandC2SPacket.Mode.START_FALL_FLYING));
+                    networkHandler.send(new ServerboundPlayerCommandPacket(player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
                 }
                 return;
             }
@@ -623,33 +626,34 @@ public class VolytraFly extends Module {
             int chunkX = (int) ((player.getX() + velX) / 16);
             int chunkZ = (int) ((player.getZ() + velZ) / 16);
             if (dontGoIntoUnloadedChunks.get()) {
-                if (world.getChunkManager().isChunkLoaded(chunkX, chunkZ)) {
-                    ((IVec3d) event.movement).meteor$set(velX, velY, velZ);
+                if (world.getChunkSource().hasChunk(chunkX, chunkZ)) {
+                    ((IVec3) event.movement).meteor$set(velX, velY, velZ);
                 } else {
                     // Don't reset acceleration/ramp state here - this fires every tick you're
                     // outrunning chunk loading, and a full zeroAcceleration() would stomp your
                     // ramped/held speed even though you never actually stopped moving. Just
                     // suppress this tick's horizontal movement.
-                    ((IVec3d) event.movement).meteor$set(0, velY, 0);
+                    ((IVec3) event.movement).meteor$set(0, velY, 0);
                 }
             } else {
-                ((IVec3d) event.movement).meteor$set(velX, velY, velZ);
+                ((IVec3) event.movement).meteor$set(velX, velY, velZ);
             }
         } else {
             mappingWaitingForChunks = false;
 
             if (lastForwardPressed) {
-                mc.options.forwardKey.setPressed(false);
+                mc.options.keyUp.setDown(false);
                 lastForwardPressed = false;
             }
         }
 
-        if (noCrash.get() && player.isGliding()) {
-            Vec3d lookAheadPos = player.getEntityPos().add(player.getVelocity().normalize().multiply(crashLookAhead.get()));
-            RaycastContext raycastContext = new RaycastContext(player.getEntityPos(), new Vec3d(lookAheadPos.getX(), player.getY(), lookAheadPos.getZ()), RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player);
-            BlockHitResult hitResult = world.raycast(raycastContext);
-            if (hitResult != null && hitResult.getType() == HitResult.Type.BLOCK) {
-                ((IVec3d) event.movement).meteor$set(0, velY, 0);
+        if (noCrash.get() && player.isFallFlying()) {
+            Vec3 lookAheadPos = player.position().add(player.getDeltaMovement().normalize().scale(crashLookAhead.get()));
+            ClipContext raycastContext = new ClipContext(player.position(), new Vec3(lookAheadPos.x, player.getY(), lookAheadPos.z), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
+            BlockHitResult hitResult = world.clip(raycastContext);
+            // clip() returns MISS instead of null, so check the type
+            if (hitResult.getType() == HitResult.Type.BLOCK) {
+                ((IVec3) event.movement).meteor$set(0, velY, 0);
             }
         }
 
@@ -666,13 +670,13 @@ public class VolytraFly extends Module {
             }
         }
 
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (replace.get() && player != null) {
-            var chestStack = player.getEquippedStack(EquipmentSlot.CHEST);
+            var chestStack = player.getItemBySlot(EquipmentSlot.CHEST);
 
             if (chestStack.getItem() == Items.ELYTRA) {
-                if (chestStack.getMaxDamage() - chestStack.getDamage() <= replaceDurability.get()) {
-                    FindItemResult elytra = InvUtils.find(stack -> stack.getMaxDamage() - stack.getDamage() > replaceDurability.get() && stack.getItem() == Items.ELYTRA);
+                if (chestStack.getMaxDamage() - chestStack.getDamageValue() <= replaceDurability.get()) {
+                    FindItemResult elytra = InvUtils.find(stack -> stack.getMaxDamage() - stack.getDamageValue() > replaceDurability.get() && stack.getItem() == Items.ELYTRA);
 
                     InvUtils.move().from(elytra.slot()).toArmor(2);
                 }
@@ -683,7 +687,7 @@ public class VolytraFly extends Module {
     @EventHandler
     @SuppressWarnings("unused")
     private void onPacketReceive(PacketEvent.Receive event) {
-        if (event.packet instanceof PlayerPositionLookS2CPacket) zeroAcceleration();
+        if (event.packet instanceof ClientboundPlayerPositionPacket) zeroAcceleration();
     }
 
     /**
@@ -697,22 +701,22 @@ public class VolytraFly extends Module {
         String text = "VolytraFly: Waiting for chunks to load (render radius: " + mappingRenderRadius.get() + ")";
         int orange = 0xFFFFA500;
 
-        int x = (mc.getWindow().getScaledWidth() - mc.textRenderer.getWidth(text)) / 2;
-        int y = mc.getWindow().getScaledHeight() / 2 + 20;
+        int x = (mc.getWindow().getGuiScaledWidth() - mc.font.width(text)) / 2;
+        int y = mc.getWindow().getGuiScaledHeight() / 2 + 20;
 
-        event.drawContext.drawText(mc.textRenderer, text, x, y, orange, true);
+        event.graphics.text(mc.font, text, x, y, orange, true);
     }
 
     private void autoTakeoff() {
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) return;
 
         if (incrementJumpTimer) jumpTimer++;
 
-        boolean jumpPressed = mc.options.jumpKey.isPressed();
+        boolean jumpPressed = mc.options.keyJump.isDown();
 
         if (autoTakeOff.get() && jumpPressed) {
-            if (!lastJumpPressed && !player.isGliding()) {
+            if (!lastJumpPressed && !player.isFallFlying()) {
                 jumpTimer = 0;
                 incrementJumpTimer = true;
             }
@@ -722,11 +726,11 @@ public class VolytraFly extends Module {
                 incrementJumpTimer = false;
                 player.setJumping(false);
                 player.setSprinting(true);
-                player.jump();
+                player.jumpFromGround();
 
-                ClientPlayNetworkHandler networkHandler = mc.getNetworkHandler();
+                ClientPacketListener networkHandler = mc.getConnection();
                 if (networkHandler != null) {
-                    networkHandler.sendPacket(new ClientCommandC2SPacket(player, ClientCommandC2SPacket.Mode.START_FALL_FLYING));
+                    networkHandler.send(new ServerboundPlayerCommandPacket(player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
                 }
             }
         }
@@ -735,12 +739,12 @@ public class VolytraFly extends Module {
     }
 
     private void handleAutopilot() {
-        PlayerEntity player = mc.player;
-        if (player == null || !player.isGliding()) return;
+        Player player = mc.player;
+        if (player == null || !player.isFallFlying()) return;
 
         // Don't fight the avoidance system's movement with a forced-forward autopilot.
         if (autoPilot.get() && !avoidanceSteering && player.getY() > autoPilotMinimumHeight.get()) {
-            mc.options.forwardKey.setPressed(true);
+            mc.options.keyUp.setDown(true);
             lastForwardPressed = true;
         }
 
@@ -751,17 +755,17 @@ public class VolytraFly extends Module {
                 FindItemResult itemResult = InvUtils.findInHotbar(Items.FIREWORK_ROCKET);
                 if (!itemResult.found()) return;
 
-                ClientPlayerInteractionManager interactionManager = mc.interactionManager;
+                MultiPlayerGameMode interactionManager = mc.gameMode;
                 if (interactionManager == null) return;
 
                 if (itemResult.isOffhand()) {
-                    interactionManager.interactItem(player, Hand.OFF_HAND);
-                    player.swingHand(Hand.OFF_HAND);
+                    interactionManager.useItem(player, InteractionHand.OFF_HAND);
+                    player.swing(InteractionHand.OFF_HAND);
                 } else {
                     InvUtils.swap(itemResult.slot(), true);
 
-                    interactionManager.interactItem(player, Hand.MAIN_HAND);
-                    player.swingHand(Hand.MAIN_HAND);
+                    interactionManager.useItem(player, InteractionHand.MAIN_HAND);
+                    player.swing(InteractionHand.MAIN_HAND);
 
                     InvUtils.swapBack();
                 }
@@ -774,21 +778,21 @@ public class VolytraFly extends Module {
         boolean a = false;
         boolean b = false;
 
-        if (mc.options.forwardKey.isPressed()) {
+        if (mc.options.keyUp.isDown()) {
             velX += forward.x * getSpeed() * 10;
             velZ += forward.z * getSpeed() * 10;
             a = true;
-        } else if (mc.options.backKey.isPressed()) {
+        } else if (mc.options.keyDown.isDown()) {
             velX -= forward.x * getSpeed() * 10;
             velZ -= forward.z * getSpeed() * 10;
             a = true;
         }
 
-        if (mc.options.rightKey.isPressed()) {
+        if (mc.options.keyRight.isDown()) {
             velX += right.x * getSpeed() * 10;
             velZ += right.z * getSpeed() * 10;
             b = true;
-        } else if (mc.options.leftKey.isPressed()) {
+        } else if (mc.options.keyLeft.isDown()) {
             velX -= right.x * getSpeed() * 10;
             velZ -= right.z * getSpeed() * 10;
             b = true;
@@ -823,7 +827,7 @@ public class VolytraFly extends Module {
      * Checks whether every chunk within radius of the user has been loaded.
      */
     private boolean areChunksLoadedInRadius(int radius) {
-        if (mc.player == null || mc.world == null) return false;
+        if (mc.player == null || mc.level == null) return false;
 
         int centerX = (int) Math.floor(mc.player.getX()) >> 4;
         int centerZ = (int) Math.floor(mc.player.getZ()) >> 4;
@@ -832,7 +836,7 @@ public class VolytraFly extends Module {
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 if (dx * dx + dz * dz > radiusSq) continue;
-                if (!mc.world.getChunkManager().isChunkLoaded(centerX + dx, centerZ + dz)) return false;
+                if (!mc.level.getChunkSource().hasChunk(centerX + dx, centerZ + dz)) return false;
             }
         }
 
@@ -840,8 +844,8 @@ public class VolytraFly extends Module {
     }
 
     private void handleVerticalSpeed() {
-        if (mc.options.jumpKey.isPressed()) velY += 0.5 * getVerticalSpeed();
-        else if (mc.options.sneakKey.isPressed()) velY -= 0.5 * getVerticalSpeed();
+        if (mc.options.keyJump.isDown()) velY += 0.5 * getVerticalSpeed();
+        else if (mc.options.keyShift.isDown()) velY -= 0.5 * getVerticalSpeed();
     }
 
     private void handleFallMultiplier() {
@@ -882,11 +886,11 @@ public class VolytraFly extends Module {
      * player's horizontal hitbox footprint.
      */
     private double distanceToGroundBelow(double maxDistance) {
-        PlayerEntity player = mc.player;
-        ClientWorld world = mc.world;
+        Player player = mc.player;
+        ClientLevel world = mc.level;
         if (player == null || world == null) return maxDistance;
 
-        Box box = player.getBoundingBox();
+        AABB box = player.getBoundingBox();
         double y = player.getY();
 
         double[] xs = {box.minX, (box.minX + box.maxX) / 2.0, box.maxX};
@@ -896,15 +900,16 @@ public class VolytraFly extends Module {
 
         for (double x : xs) {
             for (double z : zs) {
-                Vec3d start = new Vec3d(x, y, z);
-                Vec3d end = start.add(0, -maxDistance, 0);
+                Vec3 start = new Vec3(x, y, z);
+                Vec3 end = start.add(0, -maxDistance, 0);
 
-                RaycastContext raycastContext = new RaycastContext(start, end, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player);
-                BlockHitResult hitResult = world.raycast(raycastContext);
+                ClipContext raycastContext = new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
+                BlockHitResult hitResult = world.clip(raycastContext);
 
-                if (hitResult == null || hitResult.getType() != HitResult.Type.BLOCK) continue;
+                // same deal, clip() never returns null
+                if (hitResult.getType() != HitResult.Type.BLOCK) continue;
 
-                double distance = y - hitResult.getPos().y;
+                double distance = y - hitResult.getLocation().y;
                 if (distance < nearest) nearest = distance;
             }
         }
@@ -967,11 +972,11 @@ public class VolytraFly extends Module {
      * collisions in that box.
      */
     private boolean isNearAnyBlock(double distance) {
-        PlayerEntity player = mc.player;
-        ClientWorld world = mc.world;
+        Player player = mc.player;
+        ClientLevel world = mc.level;
         if (player == null || world == null) return false;
 
-        Box box = player.getBoundingBox().expand(distance);
+        AABB box = player.getBoundingBox().inflate(distance);
         return world.getBlockCollisions(player, box).iterator().hasNext();
     }
 
@@ -981,7 +986,7 @@ public class VolytraFly extends Module {
     private void handleMaxHeight() {
         if (!limitMaxHeight.get() || velY <= 0) return;
 
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) return;
 
         double limit = maxHeight.get();
@@ -995,8 +1000,8 @@ public class VolytraFly extends Module {
     }
 
     private void handleAcceleration() {
-        boolean movementKeyPressed = mc.options.forwardKey.isPressed() || mc.options.backKey.isPressed()
-            || mc.options.leftKey.isPressed() || mc.options.rightKey.isPressed();
+        boolean movementKeyPressed = mc.options.keyUp.isDown() || mc.options.keyDown.isDown()
+            || mc.options.keyLeft.isDown() || mc.options.keyRight.isDown();
 
         if (!movementKeyPressed) {
             // No movement key held - reset back to the start of the sequence. Nothing is
@@ -1054,8 +1059,8 @@ public class VolytraFly extends Module {
      * By default, this ramp only applies going downwards.
      */
     private void handleVerticalAcceleration() {
-        boolean movingUp = mc.options.jumpKey.isPressed();
-        boolean movingDown = mc.options.sneakKey.isPressed();
+        boolean movingUp = mc.options.keyJump.isDown();
+        boolean movingDown = mc.options.keyShift.isDown();
 
         if (!movingUp && !movingDown) {
             // No vertical key held - reset back to the start of the sequence. Nothing is
@@ -1115,7 +1120,7 @@ public class VolytraFly extends Module {
             return;
         }
 
-        if (isMovementKeyPhysicallyPressed() || isKeyPhysicallyPressed(mc.options.sneakKey)) {
+        if (isMovementKeyPhysicallyPressed() || isKeyPhysicallyPressed(mc.options.keyShift)) {
             // The user is actively moving horizontally or down - don't fight input. Sneak is singled out
             // (even with no WASD held) so deliberately going down is never interrupted by avoidance.
             // Any keys that avoidance had forced and the user isn't holding down get released so they don't stick.
@@ -1124,15 +1129,15 @@ public class VolytraFly extends Module {
             return;
         }
 
-        Vec3d away = findAvoidanceAwayVector();
+        Vec3 away = findAvoidanceAwayVector();
         if (away == null) {
             releaseAvoidance();
             releaseVerticalStep();
             return;
         }
 
-        PlayerEntity player = mc.player;
-        if (player == null || !player.isGliding()) return;
+        Player player = mc.player;
+        if (player == null || !player.isFallFlying()) return;
 
         if (verticalStepActive) {
             // A step maneuver already has full control - keep running it instead of fighting it
@@ -1153,44 +1158,44 @@ public class VolytraFly extends Module {
     /**
      * Uses WASD movement to direct the user, without touching yaw.
      */
-    private void steerTowardsDirection(Vec3d dir) {
-        PlayerEntity player = mc.player;
+    private void steerTowardsDirection(Vec3 dir) {
+        Player player = mc.player;
         if (player == null) return;
 
         double targetYaw = Math.toDegrees(Math.atan2(-dir.x, dir.z));
-        double relative = wrapDegrees(targetYaw - player.getYaw());
+        double relative = wrapDegrees(targetYaw - player.getYRot());
 
         // Snap to the nearest of the 8 directions a keyboard can express (N/NE/E/SE/S/SW/W/NW
         // relative to view direction) and press the corresponding key(s).
         int octant = ((int) Math.round(relative / 45.0) % 8 + 8) % 8;
 
-        mc.options.forwardKey.setPressed(octant == 0 || octant == 1 || octant == 7);
-        mc.options.backKey.setPressed(octant == 3 || octant == 4 || octant == 5);
-        mc.options.rightKey.setPressed(octant == 1 || octant == 2 || octant == 3);
-        mc.options.leftKey.setPressed(octant == 5 || octant == 6 || octant == 7);
+        mc.options.keyUp.setDown(octant == 0 || octant == 1 || octant == 7);
+        mc.options.keyDown.setDown(octant == 3 || octant == 4 || octant == 5);
+        mc.options.keyRight.setDown(octant == 1 || octant == 2 || octant == 3);
+        mc.options.keyLeft.setDown(octant == 5 || octant == 6 || octant == 7);
     }
 
-    private Vec3d findAvoidanceAwayVector() {
-        PlayerEntity self = mc.player;
-        ClientWorld world = mc.world;
+    private Vec3 findAvoidanceAwayVector() {
+        Player self = mc.player;
+        ClientLevel world = mc.level;
         if (self == null || world == null) return null;
 
         double[] acc = {0, 0};
         boolean foundThreat = false;
 
-        for (PlayerEntity player : world.getPlayers()) {
+        for (Player player : world.players()) {
             if (player == self) continue;
             if (avoidanceIgnoreFriends.get() && Friends.get().isFriend(player)) continue;
 
-            if (accumulateThreat(player.getEntityPos(), avoidanceRadius.get(), acc)) foundThreat = true;
+            if (accumulateThreat(player.position(), avoidanceRadius.get(), acc)) foundThreat = true;
         }
 
         if (avoidWitherSkulls.get() || avoidArrows.get()) {
-            for (Entity entity : world.getEntities()) {
-                if (avoidWitherSkulls.get() && entity instanceof WitherSkullEntity) {
-                    if (accumulateThreat(entity.getEntityPos(), witherSkullRadius.get(), acc)) foundThreat = true;
-                } else if (avoidArrows.get() && entity instanceof ArrowEntity) {
-                    if (accumulateThreat(entity.getEntityPos(), arrowRadius.get(), acc)) foundThreat = true;
+            for (Entity entity : world.entitiesForRendering()) {
+                if (avoidWitherSkulls.get() && entity instanceof WitherSkull) {
+                    if (accumulateThreat(entity.position(), witherSkullRadius.get(), acc)) foundThreat = true;
+                } else if (avoidArrows.get() && entity instanceof Arrow) {
+                    if (accumulateThreat(entity.position(), arrowRadius.get(), acc)) foundThreat = true;
                 }
             }
         }
@@ -1203,8 +1208,8 @@ public class VolytraFly extends Module {
 
         if (!foundThreat) return null;
 
-        Vec3d direction = new Vec3d(acc[0], 0, acc[1]);
-        if (direction.lengthSquared() == 0) return null;
+        Vec3 direction = new Vec3(acc[0], 0, acc[1]);
+        if (direction.lengthSqr() == 0) return null;
 
         direction = direction.normalize();
 
@@ -1223,8 +1228,8 @@ public class VolytraFly extends Module {
      * (sooo technically not in any horizontal direction) still counts as nearby.
      */
     private boolean isPlayerWithinAvoidanceRadius() {
-        PlayerEntity self = mc.player;
-        ClientWorld world = mc.world;
+        Player self = mc.player;
+        ClientLevel world = mc.level;
         if (self == null || world == null) return false;
 
         double radius = avoidanceRadius.get();
@@ -1232,11 +1237,11 @@ public class VolytraFly extends Module {
 
         double radiusSq = radius * radius;
 
-        for (PlayerEntity player : world.getPlayers()) {
+        for (Player player : world.players()) {
             if (player == self) continue;
             if (avoidanceIgnoreFriends.get() && Friends.get().isFriend(player)) continue;
 
-            if (self.getEntityPos().squaredDistanceTo(player.getEntityPos()) < radiusSq) return true;
+            if (self.position().distanceToSqr(player.position()) < radiusSq) return true;
         }
 
         return false;
@@ -1248,8 +1253,8 @@ public class VolytraFly extends Module {
     private boolean isWitherSkullWithinAvoidanceRadius() {
         if (!avoidWitherSkulls.get()) return false;
 
-        PlayerEntity self = mc.player;
-        ClientWorld world = mc.world;
+        Player self = mc.player;
+        ClientLevel world = mc.level;
         if (self == null || world == null) return false;
 
         double radius = witherSkullRadius.get();
@@ -1257,9 +1262,9 @@ public class VolytraFly extends Module {
 
         double radiusSq = radius * radius;
 
-        for (Entity entity : world.getEntities()) {
-            if (!(entity instanceof WitherSkullEntity)) continue;
-            if (self.getEntityPos().squaredDistanceTo(entity.getEntityPos()) < radiusSq) return true;
+        for (Entity entity : world.entitiesForRendering()) {
+            if (!(entity instanceof WitherSkull)) continue;
+            if (self.position().distanceToSqr(entity.position()) < radiusSq) return true;
         }
 
         return false;
@@ -1278,36 +1283,36 @@ public class VolytraFly extends Module {
      * and keeps the one with a larger positive component back along 'away', so the
      * user gets pushed outward.
      */
-    private Vec3d lateralize(Vec3d away) {
-        Vec3d perpA = new Vec3d(-away.z, 0, away.x);
-        Vec3d perpB = new Vec3d(away.z, 0, -away.x);
+    private Vec3 lateralize(Vec3 away) {
+        Vec3 perpA = new Vec3(-away.z, 0, away.x);
+        Vec3 perpB = new Vec3(away.z, 0, -away.x);
 
         boolean sideA;
         if (avoidanceLateralDir != null) {
-            sideA = avoidanceLateralDir.dotProduct(perpA) >= avoidanceLateralDir.dotProduct(perpB);
+            sideA = avoidanceLateralDir.dot(perpA) >= avoidanceLateralDir.dot(perpB);
         } else {
-            PlayerEntity player = mc.player;
-            Vec3d vel = player != null ? player.getVelocity() : Vec3d.ZERO;
-            Vec3d horizontalVel = new Vec3d(vel.x, 0, vel.z);
-            sideA = !(horizontalVel.lengthSquared() > 1.0E-4 && horizontalVel.dotProduct(perpB) > horizontalVel.dotProduct(perpA));
+            Player player = mc.player;
+            Vec3 vel = player != null ? player.getDeltaMovement() : Vec3.ZERO;
+            Vec3 horizontalVel = new Vec3(vel.x, 0, vel.z);
+            sideA = !(horizontalVel.lengthSqr() > 1.0E-4 && horizontalVel.dot(perpB) > horizontalVel.dot(perpA));
         }
 
         double baseAngle = sideA ? 90 : -90;
-        Vec3d optionA = rotateHorizontal(away, baseAngle - 10);
-        Vec3d optionB = rotateHorizontal(away, baseAngle + 10);
-        Vec3d chosen = optionA.dotProduct(away) >= optionB.dotProduct(away) ? optionA : optionB;
+        Vec3 optionA = rotateHorizontal(away, baseAngle - 10);
+        Vec3 optionB = rotateHorizontal(away, baseAngle + 10);
+        Vec3 chosen = optionA.dot(away) >= optionB.dot(away) ? optionA : optionB;
 
         avoidanceLateralDir = chosen;
         return chosen;
     }
 
     /** Rotates a horizontal-only vector by the given angle around the Y axis. */
-    private Vec3d rotateHorizontal(Vec3d v, double degrees) {
+    private Vec3 rotateHorizontal(Vec3 v, double degrees) {
         double rad = Math.toRadians(degrees);
         double cos = Math.cos(rad);
         double sin = Math.sin(rad);
 
-        return new Vec3d(v.x * cos - v.z * sin, 0, v.x * sin + v.z * cos);
+        return new Vec3(v.x * cos - v.z * sin, 0, v.x * sin + v.z * cos);
     }
 
     /**
@@ -1315,21 +1320,21 @@ public class VolytraFly extends Module {
      * closer threats push harder than ones near the edge of their radius.
      * Returns whether the threat was close enough to contribute at all.
      */
-    private boolean accumulateThreat(Vec3d threatPos, double radius, double[] acc) {
+    private boolean accumulateThreat(Vec3 threatPos, double radius, double[] acc) {
         if (radius <= 0) return false;
 
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) return false;
 
-        double distanceSq = player.getEntityPos().squaredDistanceTo(threatPos);
+        double distanceSq = player.position().distanceToSqr(threatPos);
         if (distanceSq >= radius * radius || distanceSq == 0) return false;
 
-        Vec3d awayFromThreat = player.getEntityPos().subtract(threatPos);
-        awayFromThreat = new Vec3d(awayFromThreat.x, 0, awayFromThreat.z);
-        if (awayFromThreat.lengthSquared() == 0) return false;
+        Vec3 awayFromThreat = player.position().subtract(threatPos);
+        awayFromThreat = new Vec3(awayFromThreat.x, 0, awayFromThreat.z);
+        if (awayFromThreat.lengthSqr() == 0) return false;
 
         double weight = 1 - (Math.sqrt(distanceSq) / radius);
-        awayFromThreat = awayFromThreat.normalize().multiply(weight);
+        awayFromThreat = awayFromThreat.normalize().scale(weight);
 
         acc[0] += awayFromThreat.x;
         acc[1] += awayFromThreat.z;
@@ -1344,15 +1349,15 @@ public class VolytraFly extends Module {
     private boolean accumulateNearbyBlockThreats(double radius, double[] acc) {
         if (radius <= 0) return false;
 
-        PlayerEntity player = mc.player;
-        ClientWorld world = mc.world;
+        Player player = mc.player;
+        ClientLevel world = mc.level;
         if (player == null || world == null) return false;
 
         boolean foundThreat = false;
-        BlockPos center = player.getBlockPos();
+        BlockPos center = player.blockPosition();
         int r = (int) Math.ceil(radius);
 
-        BlockPos.Mutable pos = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int dx = -r; dx <= r; dx++) {
             for (int dy = 0; dy <= r; dy++) {
                 for (int dz = -r; dz <= r; dz++) {
@@ -1361,10 +1366,10 @@ public class VolytraFly extends Module {
 
                     // Cobwebs report an empty collision shape (their slowdown is applied via
                     // entity collision, not physical collision).
-                    boolean isCobweb = state.isOf(Blocks.COBWEB);
+                    boolean isCobweb = state.is(Blocks.COBWEB);
                     if (!isCobweb && state.getCollisionShape(world, pos).isEmpty()) continue;
 
-                    Vec3d blockCenter = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    Vec3 blockCenter = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                     if (accumulateThreat(blockCenter, radius, acc)) foundThreat = true;
                 }
             }
@@ -1382,7 +1387,7 @@ public class VolytraFly extends Module {
      * of continuing to fight the wall with horizontal input.
      */
     private void updateAvoidanceStuckDetection() {
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) return;
 
         avoidanceStuckTicksCount = player.horizontalCollision ? avoidanceStuckTicksCount + 1 : 0;
@@ -1397,7 +1402,7 @@ public class VolytraFly extends Module {
      * If both directions are blocked, does nothing and stays stuck, but will try again on the next tick.
      */
     private void beginVerticalStep() {
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) return;
 
         boolean upClear = hasVerticalClearance(1.0);
@@ -1424,11 +1429,11 @@ public class VolytraFly extends Module {
      * the player's current hitbox.
      */
     private boolean hasVerticalClearance(double dy) {
-        PlayerEntity player = mc.player;
-        ClientWorld world = mc.world;
+        Player player = mc.player;
+        ClientLevel world = mc.level;
         if (player == null || world == null) return false;
 
-        Box box = player.getBoundingBox().offset(0, dy, 0);
+        AABB box = player.getBoundingBox().move(0, dy, 0);
         return !world.getBlockCollisions(player, box).iterator().hasNext();
     }
 
@@ -1438,7 +1443,7 @@ public class VolytraFly extends Module {
      * A tick timeout protects against never quite reaching a full block.
      */
     private void stepVerticalStep() {
-        PlayerEntity player = mc.player;
+        Player player = mc.player;
         if (player == null) {
             releaseVerticalStep();
             return;
@@ -1452,16 +1457,16 @@ public class VolytraFly extends Module {
             return;
         }
 
-        if (!isKeyPhysicallyPressed(mc.options.jumpKey)) mc.options.jumpKey.setPressed(verticalStepUp);
-        if (!isKeyPhysicallyPressed(mc.options.sneakKey)) mc.options.sneakKey.setPressed(!verticalStepUp);
+        if (!isKeyPhysicallyPressed(mc.options.keyJump)) mc.options.keyJump.setDown(verticalStepUp);
+        if (!isKeyPhysicallyPressed(mc.options.keyShift)) mc.options.keyShift.setDown(!verticalStepUp);
     }
 
     private void releaseVerticalStep() {
         avoidanceStuckTicksCount = 0;
 
         if (verticalStepActive) {
-            if (!isKeyPhysicallyPressed(mc.options.jumpKey)) mc.options.jumpKey.setPressed(false);
-            if (!isKeyPhysicallyPressed(mc.options.sneakKey)) mc.options.sneakKey.setPressed(false);
+            if (!isKeyPhysicallyPressed(mc.options.keyJump)) mc.options.keyJump.setDown(false);
+            if (!isKeyPhysicallyPressed(mc.options.keyShift)) mc.options.keyShift.setDown(false);
         }
 
         verticalStepActive = false;
@@ -1473,20 +1478,20 @@ public class VolytraFly extends Module {
      * Used when handing control over to a vertical step, which only needs jump/sneak while it runs.
      */
     private void releaseHorizontalKeys() {
-        if (!isKeyPhysicallyPressed(mc.options.forwardKey)) mc.options.forwardKey.setPressed(false);
-        if (!isKeyPhysicallyPressed(mc.options.backKey)) mc.options.backKey.setPressed(false);
-        if (!isKeyPhysicallyPressed(mc.options.leftKey)) mc.options.leftKey.setPressed(false);
-        if (!isKeyPhysicallyPressed(mc.options.rightKey)) mc.options.rightKey.setPressed(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyUp)) mc.options.keyUp.setDown(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyDown)) mc.options.keyDown.setDown(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyLeft)) mc.options.keyLeft.setDown(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyRight)) mc.options.keyRight.setDown(false);
     }
 
     private void releaseAvoidance() {
         avoidanceLateralDir = null;
 
         if (!avoidanceSteering) return;
-        mc.options.forwardKey.setPressed(false);
-        mc.options.backKey.setPressed(false);
-        mc.options.leftKey.setPressed(false);
-        mc.options.rightKey.setPressed(false);
+        mc.options.keyUp.setDown(false);
+        mc.options.keyDown.setDown(false);
+        mc.options.keyLeft.setDown(false);
+        mc.options.keyRight.setDown(false);
         avoidanceSteering = false;
     }
 
@@ -1499,31 +1504,62 @@ public class VolytraFly extends Module {
 
         if (!avoidanceSteering) return;
 
-        if (!isKeyPhysicallyPressed(mc.options.forwardKey)) mc.options.forwardKey.setPressed(false);
-        if (!isKeyPhysicallyPressed(mc.options.backKey)) mc.options.backKey.setPressed(false);
-        if (!isKeyPhysicallyPressed(mc.options.leftKey)) mc.options.leftKey.setPressed(false);
-        if (!isKeyPhysicallyPressed(mc.options.rightKey)) mc.options.rightKey.setPressed(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyUp)) mc.options.keyUp.setDown(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyDown)) mc.options.keyDown.setDown(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyLeft)) mc.options.keyLeft.setDown(false);
+        if (!isKeyPhysicallyPressed(mc.options.keyRight)) mc.options.keyRight.setDown(false);
 
         avoidanceSteering = false;
     }
 
     private boolean isMovementKeyPhysicallyPressed() {
-        return isKeyPhysicallyPressed(mc.options.forwardKey)
-            || isKeyPhysicallyPressed(mc.options.backKey)
-            || isKeyPhysicallyPressed(mc.options.leftKey)
-            || isKeyPhysicallyPressed(mc.options.rightKey);
+        return isKeyPhysicallyPressed(mc.options.keyUp)
+            || isKeyPhysicallyPressed(mc.options.keyDown)
+            || isKeyPhysicallyPressed(mc.options.keyLeft)
+            || isKeyPhysicallyPressed(mc.options.keyRight);
+    }
+
+    // find the bound-key field by type instead of by name since it keeps getting renamed
+    private static Field boundKeyField;
+    private static boolean boundKeyFieldSearched = false;
+
+    private static InputConstants.Key getBoundKey(KeyMapping binding) {
+        if (!boundKeyFieldSearched) {
+            boundKeyFieldSearched = true;
+
+            // skip the static/final "default" field, we want the current binding
+            for (Field field : KeyMapping.class.getDeclaredFields()) {
+                if (field.getType() != InputConstants.Key.class) continue;
+
+                int mods = field.getModifiers();
+                if (java.lang.reflect.Modifier.isStatic(mods)) continue;
+                if (java.lang.reflect.Modifier.isFinal(mods)) continue;
+                if (field.getName().toLowerCase().contains("default")) continue;
+
+                field.setAccessible(true);
+                boundKeyField = field;
+                break;
+            }
+        }
+
+        if (boundKeyField == null) return null;
+
+        try {
+            return (InputConstants.Key) boundKeyField.get(binding);
+        } catch (IllegalAccessException e) {
+            return null;
+        }
     }
 
     /**
-     * Checks the actual hardware key state rather than KeyBinding.isPressed().
+     * Checks the actual hardware key state rather than KeyMapping.isDown().
      */
-    private boolean isKeyPhysicallyPressed(KeyBinding binding) {
-        if (mc.getWindow() == null) return binding.isPressed();
+    private boolean isKeyPhysicallyPressed(KeyMapping binding) {
+        InputConstants.Key key = getBoundKey(binding);
+        if (key == null) return binding.isDown();
+        if (key.getType() != InputConstants.Type.KEYSYM) return binding.isDown();
 
-        InputUtil.Key key = InputUtil.fromTranslationKey(binding.getBoundKeyTranslationKey());
-        if (key.getCategory() != InputUtil.Type.KEYSYM) return binding.isPressed();
-
-        return InputUtil.isKeyPressed(mc.getWindow(), key.getCode());
+        return InputConstants.isKeyDown(mc.getWindow(), key.getValue());
     }
 
     /**
@@ -1541,10 +1577,10 @@ public class VolytraFly extends Module {
         @EventHandler
         @SuppressWarnings("unused")
         private void chestSwapGroundListener(@SuppressWarnings("unused") PlayerMoveEvent event) {
-            PlayerEntity player = mc.player;
-            if (player == null || !player.isOnGround()) return;
+            Player player = mc.player;
+            if (player == null || !player.onGround()) return;
 
-            if (player.getEquippedStack(EquipmentSlot.CHEST).getItem() == Items.ELYTRA) {
+            if (player.getItemBySlot(EquipmentSlot.CHEST).getItem() == Items.ELYTRA) {
                 swapToChestSwap();
                 disableGroundListener();
             }
@@ -1566,10 +1602,10 @@ public class VolytraFly extends Module {
         @EventHandler
         @SuppressWarnings("unused")
         private void onInstadropTick(@SuppressWarnings("unused") TickEvent.Post event) {
-            ClientPlayerEntity player = mc.player;
-            if (player != null && player.isGliding()) {
-                player.setVelocity(0, 0, 0);
-                player.networkHandler.sendPacket(new net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket.OnGroundOnly(true, player.horizontalCollision));
+            LocalPlayer player = mc.player;
+            if (player != null && player.isFallFlying()) {
+                player.setDeltaMovement(Vec3.ZERO);
+                player.connection.send(new net.minecraft.network.protocol.game.ServerboundMovePlayerPacket.StatusOnly(true, player.horizontalCollision));
             } else {
                 disableInstaDropListener();
             }
