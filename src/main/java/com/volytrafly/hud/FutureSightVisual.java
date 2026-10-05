@@ -9,10 +9,10 @@ import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.render.NametagUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3d;
 
 import java.util.HashMap;
@@ -39,12 +39,12 @@ public final class FutureSightVisual {
 
     // Each player's recent movement per tick, smoothed. Other players' positions only update when
     // the server sends them, so raw tick-to-tick movement flickers between zero and a double step.
-    private final Map<UUID, Vec3d> velocity = new HashMap<>();
+    private final Map<UUID, Vec3> velocity = new HashMap<>();
 
     // Where each player is expected to have moved to one second from now, relative to where they
     // are this tick. Worked out once per tick (not per frame) because airborne players are stepped
     // through gravity and block collisions.
-    private final Map<UUID, Vec3d> predictedOffset = new HashMap<>();
+    private final Map<UUID, Vec3> predictedOffset = new HashMap<>();
 
     // Fixed look of the rings: range in blocks, ring size multiplier, line thickness and dash
     // length in pixels, rotation in degrees per second, pulse period in seconds.
@@ -75,7 +75,7 @@ public final class FutureSightVisual {
     @EventHandler
     private void onTick(TickEvent.Post event) {
         VolytraFly module = Modules.get().get(VolytraFly.class);
-        ClientWorld world = mc.world;
+        ClientLevel world = mc.level;
         if (world == null || !(live(module) || crt.visible())) {
             velocity.clear();
             predictedOffset.clear();
@@ -83,15 +83,15 @@ public final class FutureSightVisual {
         }
 
         Set<UUID> present = new HashSet<>();
-        for (PlayerEntity player : world.getPlayers()) {
+        for (Player player : world.players()) {
             if (player == mc.player) continue;
-            UUID id = player.getUuid();
+            UUID id = player.getUUID();
             present.add(id);
 
-            Vec3d moved = new Vec3d(player.getX() - player.lastX, player.getY() - player.lastY, player.getZ() - player.lastZ);
-            Vec3d smoothed = velocity.compute(id, (key, previous) -> previous == null
+            Vec3 moved = new Vec3(player.getX() - player.xo, player.getY() - player.yo, player.getZ() - player.zo);
+            Vec3 smoothed = velocity.compute(id, (key, previous) -> previous == null
                 ? moved
-                : previous.multiply(1 - VELOCITY_SMOOTHING).add(moved.multiply(VELOCITY_SMOOTHING)));
+                : previous.scale(1 - VELOCITY_SMOOTHING).add(moved.scale(VELOCITY_SMOOTHING)));
             predictedOffset.put(id, predictOffset(world, player, smoothed));
         }
         velocity.keySet().retainAll(present);
@@ -105,12 +105,12 @@ public final class FutureSightVisual {
      * stepped tick by tick with vanilla gravity, keeping their horizontal movement, and stop
      * against the floor, ceiling or walls instead of passing through them.
      */
-    private Vec3d predictOffset(ClientWorld world, PlayerEntity player, Vec3d perTick) {
-        boolean falling = !player.isOnGround() && !player.isGliding() && !player.isTouchingWater()
-            && !player.isInLava() && !player.isClimbing() && !player.hasNoGravity();
-        if (!falling) return perTick.multiply(LOOKAHEAD_TICKS);
+    private Vec3 predictOffset(ClientLevel world, Player player, Vec3 perTick) {
+        boolean falling = !player.onGround() && !player.isFallFlying() && !player.isInWater()
+            && !player.isInLava() && !player.onClimbable() && !player.isNoGravity();
+        if (!falling) return perTick.scale(LOOKAHEAD_TICKS);
 
-        Box box = player.getBoundingBox();
+        AABB box = player.getBoundingBox();
         double vx = perTick.x, vy = perTick.y, vz = perTick.z;
         double dx = 0, dy = 0, dz = 0;
 
@@ -120,20 +120,20 @@ public final class FutureSightVisual {
 
             // Horizontal, one axis at a time so the player slides along walls.
             if (vx != 0) {
-                if (world.isSpaceEmpty(player, box.offset(dx + vx, dy, dz))) dx += vx;
+                if (world.noCollision(player, box.move(dx + vx, dy, dz))) dx += vx;
                 else vx = 0;
             }
             if (vz != 0) {
-                if (world.isSpaceEmpty(player, box.offset(dx, dy, dz + vz))) dz += vz;
+                if (world.noCollision(player, box.move(dx, dy, dz + vz))) dz += vz;
                 else vz = 0;
             }
 
             // Vertical: landing on the floor or bumping a ceiling stops the vertical movement.
-            if (world.isSpaceEmpty(player, box.offset(dx, dy + vy, dz))) dy += vy;
+            if (world.noCollision(player, box.move(dx, dy + vy, dz))) dy += vy;
             else vy = 0;
         }
 
-        return new Vec3d(dx, dy, dz);
+        return new Vec3(dx, dy, dz);
     }
 
     @SuppressWarnings("unused") // called by Meteor's event bus
@@ -149,8 +149,8 @@ public final class FutureSightVisual {
         crt.update(dt, live(module), module.crtOverlay.get());
         if (!crt.visible()) return;
 
-        PlayerEntity self = mc.player;
-        ClientWorld world = mc.world;
+        Player self = mc.player;
+        ClientLevel world = mc.level;
         if (self == null || world == null) return;
 
         double rangeSq = RANGE * RANGE;
@@ -167,24 +167,24 @@ public final class FutureSightVisual {
 
         // The camera's true horizontal right vector, so the body-width sample below is taken
         // side-to-side as the camera actually sees it, not along a fixed world axis.
-        double yawRad = Math.toRadians(mc.gameRenderer.getCamera().getYaw());
+        double yawRad = Math.toRadians(mc.gameRenderer.getMainCamera().yRot());
         double rightX = -Math.cos(yawRad);
         double rightZ = -Math.sin(yawRad);
 
         CrtEffect.Sink sink = Renderer2D.COLOR::triangle;
         Renderer2D.COLOR.begin();
 
-        for (PlayerEntity player : world.getPlayers()) {
+        for (Player player : world.players()) {
             if (player == self) continue;
             if (module.futureSightIgnoreFriends.get() && Friends.get().isFriend(player)) continue;
-            if (self.getEntityPos().squaredDistanceTo(player.getEntityPos()) > rangeSq) continue;
+            if (self.position().distanceToSqr(player.position()) > rangeSq) continue;
 
-            double x = player.lastX + (player.getX() - player.lastX) * event.tickDelta;
-            double y = player.lastY + (player.getY() - player.lastY) * event.tickDelta;
-            double z = player.lastZ + (player.getZ() - player.lastZ) * event.tickDelta;
-            y += player.getHeight() / 2.0;
+            double x = player.xo + (player.getX() - player.xo) * event.tickDelta;
+            double y = player.yo + (player.getY() - player.yo) * event.tickDelta;
+            double z = player.zo + (player.getZ() - player.zo) * event.tickDelta;
+            y += player.getBbHeight() / 2.0;
 
-            Vec3d offset = predictedOffset.getOrDefault(player.getUuid(), Vec3d.ZERO);
+            Vec3 offset = predictedOffset.getOrDefault(player.getUUID(), Vec3.ZERO);
             double futureX = x + offset.x;
             double futureY = y + offset.y;
             double futureZ = z + offset.z;
@@ -194,7 +194,7 @@ public final class FutureSightVisual {
 
             // Project a second point one half body-width to the camera's side of the predicted
             // spot, so the pixel gap tells us how big a player would look standing there.
-            double halfWidth = player.getWidth() / 2.0;
+            double halfWidth = player.getBbWidth() / 2.0;
             Vector3d edge = new Vector3d(futureX + rightX * halfWidth, futureY, futureZ + rightZ * halfWidth);
             if (!NametagUtils.to2D(edge, 1, false, false)) continue;
 

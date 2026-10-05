@@ -22,14 +22,27 @@ repositories {
 dependencies {
     // Fabric
     minecraft(libs.minecraft)
-    mappings(variantOf(libs.yarn) { classifier("v2") })
-    modImplementation(libs.fabric.loader)
+    implementation(libs.fabric.loader)
 
     // Meteor
-    modImplementation(libs.meteor.client)
+    implementation(libs.meteor.client)
+    // Meteor supplies this at runtime; Minecraft's injected interfaces also need it at compile time.
+    compileOnly("net.fabricmc.fabric-api:fabric-resource-loader-v1:2.0.9+d871b99e4c")
 }
 
 tasks {
+    val flightRegressionTest by registering(Exec::class) {
+        group = "verification"
+        description = "Runs headless regression checks for movement protection and deferred actions."
+        inputs.file("tests/regression.py")
+        inputs.file("src/main/java/com/volytrafly/modules/movement/volytrafly/VolytraFly.java")
+        commandLine("python3", "tests/regression.py")
+    }
+
+    check {
+        dependsOn(flightRegressionTest)
+    }
+
     processResources {
         val propertyMap = mapOf(
             "version" to project.version,
@@ -46,6 +59,7 @@ tasks {
     }
 
     jar {
+        archiveClassifier = "mc${libs.versions.minecraft.get()}"
         inputs.property("archivesName", project.base.archivesName.get())
 
         from("LICENSE") {
@@ -54,13 +68,13 @@ tasks {
     }
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
     }
 
     withType<JavaCompile> {
         options.encoding = "UTF-8"
-        options.release = 21
+        options.release = 25
         options.compilerArgs.add("-Xlint:deprecation")
         options.compilerArgs.add("-Xlint:unchecked")
     }

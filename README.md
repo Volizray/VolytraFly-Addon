@@ -31,10 +31,35 @@ Mapping, Building, Bypass, Avoidance, Landing, Autopilot and Highway Mode can ea
 
 ## Development
 
+- This branch builds for **Minecraft 26.1.1**, using **Java 25** and **Fabric Loader 0.19.2 or newer**.
+- Use Meteor's archived **26.1.2 build 42**, which declares support for the 26.1 series.
+  [Official Meteor archive](https://meteorclient.com/archive).
+- Requirements: JDK 25 and Python 3 (for the headless regression checks).
+- Build and check: `bash gradlew build`. The installable add-on JAR is in `build/libs/`.
+- Run just the regression checks: `python3 tests/regression.py` or `bash gradlew flightRegressionTest`.
+- CI builds the add-on and runs those checks for pushes and pull requests, then uploads the JAR.
+- Loom is pinned to a release and Meteor to an exact timestamped snapshot in
+  `gradle/libs.versions.toml`. Update these deliberately and run the full build before committing.
+- The output is `build/libs/VolytraFly-0.1.1-mc26.1.1.jar`; place it in the instance's `mods` folder
+  alongside Meteor. The previous 1.21.11 JAR is preserved locally under `builds/`.
 - Run the `Minecraft Client` run configuration in your IDE to test the addon.
 - Source lives in `src/main/java/com/volytrafly`: the module is `modules/movement/volytrafly/VolytraFly.java`
   and the HUD elements are in `hud/`.
 - `src/main/resources/fabric.mod.json` contains the addon's metadata.
+
+The regression harness compiles the actual movement and deferred-action handlers against small
+headless stand-ins. It covers negative chunk boundaries, normal/Bypass Mapping pauses and resumption,
+and listener cleanup on reactivation, disconnect and world changes. It does not launch Minecraft or
+validate mixins, real network behavior, rendering or Meteor's event dispatch. See
+[the in-game verification checklist](tests/IN_GAME_CHECKS.md) for those checks.
+
+### Unreleased fixes
+
+- Port Minecraft references to Mojang names and update Meteor's input, vector and HUD interfaces for 26.1.1.
+- Correct unloaded-chunk checks at negative X and Z coordinates.
+- Apply Mapping's pause protection to normal, Bypass and Highway movement.
+- Cancel pending ground-swap and insta-drop actions on reactivation, disconnect or world changes.
+- Stop waiting for a ground swap after landing when the player has already changed their chest item.
 
 ## License
 

@@ -11,11 +11,11 @@ import meteordevelopment.meteorclient.systems.hud.YAnchor;
 import meteordevelopment.meteorclient.systems.hud.screens.HudEditorScreen;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.render.color.Color;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 
@@ -92,7 +92,7 @@ public class ElytraFuelHud extends HudElement {
         if (entity == null) entity = mc.player;
         if (!(entity instanceof LivingEntity living)) return null;
 
-        ItemStack chest = living.getEquippedStack(EquipmentSlot.CHEST);
+        ItemStack chest = living.getItemBySlot(EquipmentSlot.CHEST);
         return chest.getItem() == Items.ELYTRA ? chest : null;
     }
 
@@ -141,7 +141,7 @@ public class ElytraFuelHud extends HudElement {
         ItemStack elytra = dataLive ? wornElytra() : null;
         boolean worn = elytra != null;
 
-        int remaining = worn ? elytra.getMaxDamage() - elytra.getDamage() : 0;
+        int remaining = worn ? elytra.getMaxDamage() - elytra.getDamageValue() : 0;
         double target;
         if (!dataLive) {
             target = PREVIEW_FRACTION;

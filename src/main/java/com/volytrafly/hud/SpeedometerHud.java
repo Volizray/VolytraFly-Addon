@@ -11,8 +11,7 @@ import meteordevelopment.meteorclient.systems.hud.YAnchor;
 import meteordevelopment.meteorclient.systems.hud.screens.HudEditorScreen;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.render.color.Color;
-import net.minecraft.entity.Entity;
-
+import net.minecraft.world.entity.Entity;
 import java.util.Locale;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;

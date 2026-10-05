@@ -44,8 +44,8 @@ public final class HudLayout {
     private static double resolutionFactor() {
         try {
             var window = mc.getWindow();
-            if (window != null && window.getFramebufferHeight() > 0) {
-                return window.getFramebufferHeight() / REFERENCE_HEIGHT;
+            if (window != null && window.getHeight() > 0) {
+                return window.getHeight() / REFERENCE_HEIGHT;
             }
         } catch (Throwable ignored) {
             // Fall through to the 4K values.
@@ -77,7 +77,7 @@ public final class HudLayout {
      * server class, which can be spotted without depending on Flashback itself.
      */
     static boolean inFlashbackReplay() {
-        var server = mc.getServer();
+        var server = mc.getSingleplayerServer();
         return server != null && server.getClass().getName().startsWith("com.moulberry.flashback");
     }
 
