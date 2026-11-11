@@ -23,7 +23,7 @@ VolytraFly is organised into setting groups:
 - **Autohighway** - Automatically locks to a highway and either guides you towards or away from the centre of the world while avoiding obstacles
 - **Autonav** - Automatically travels to selected coordinates while avoiding obstacles. Coordinates can be input, or you can use Xaero's world map to select a location
 - **Visuals** - Helpful HUD elements that add to the experience of VolytraFly
-- **Overdrive** - Applies a lil' bit of dark magic to warp the acceleration curve and acieve near-instant max speed
+- **Overdrive** - Applies a lil' bit of dark magic to warp the acceleration curve and achieve near-instant max speed
 
 Additional modes have their own keybinds
 
