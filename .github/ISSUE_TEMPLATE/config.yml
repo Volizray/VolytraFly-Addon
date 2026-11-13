@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Meteor Client Discord
+    url: https://discord.gg/meteorclient
+    about: General Meteor Client / addon support (not VolytraFly-specific)
+  - name: VolytraFly source
+    url: https://github.com/Volizray/VolytraFly-Addon
+    about: Repository / existing issues and releases

@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "volytrafly",
-  "version": "${version}",
-  "name": "Volytra Fly",
-  "description": "A Meteor Client addon specifically designed to maximise the flight envelope of elytra flight on 6b6t along with providing new quality-of-life features.",
+  "id": "${mod_id}",
+  "version": "${mod_version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
   "authors": [
     "Volizray"
   ],
   "contact": {
-    "sources": "https://github.com/Volizray/VolytraFly-Addon"
+    "sources": "${mod_sources}",
+    "homepage": "${mod_homepage}"
   },
   "icon": "assets/volytrafly/icon.png",
   "environment": "client",
@@ -26,8 +27,8 @@
     }
   },
   "depends": {
-    "java": ">=25",
-    "minecraft": ["${mc_version}"],
+    "java": "${java_dependency}",
+    "minecraft": ["${minecraft_dependency}"],
     "meteor-client": "*"
   }
 }

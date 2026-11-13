@@ -1,0 +1,106 @@
+name: Flight / mode behaviour
+description: Flight feels wrong on a specific mode (speed, pathing, avoidance, landing) without a hard crash
+title: "[Flight]: "
+labels: ["flight-behaviour"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when VolytraFly **runs** but movement, pathing, or a mode does not match what you expect
+        (e.g. rubberband loops, Autonav drift, avoidance overreacting, bad landing).
+
+  - type: dropdown
+    id: mc-version
+    attributes:
+      label: Minecraft version
+      options:
+        - "1.21.11"
+        - "26.1 / 26.1.1 / 26.1.2"
+        - "26.2"
+        - "26.3"
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: meteor-version
+    attributes:
+      label: Meteor Client version
+      placeholder: 26.3-SNAPSHOT
+    validations:
+      required: true
+
+  - type: input
+    id: server
+    attributes:
+      label: Server
+      placeholder: 6b6t
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode(s) active when it happens
+      multiple: true
+      options:
+        - Base flight only (no extra modes)
+        - Mapping
+        - Building Mode
+        - Bypass Mode
+        - Player Avoidance
+        - Landing / Anti-slam
+        - Autopilot
+        - Autohighway
+        - Autonav
+        - Overdrive
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: Main symptom
+      options:
+        - Speed too high / too low
+        - Acceleration feels wrong
+        - Constant rubberbanding / speed locked low
+        - Crashes into blocks / no-crash failed
+        - Flies into unloaded chunks
+        - Avoidance wrong (too aggressive / ignores threats)
+        - Autonav / Autohighway path wrong or stuck
+        - Landing still hard / overshoots
+        - Elytra or fireworks not managed correctly
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: What you see
+      description: Direction of travel, approximate speed, height, highway vs open sky, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings
+      description: Defaults or list of changed VolytraFly options
+      placeholder: defaults
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Clips / extra notes
+      description: Short video or additional mods (Xaero's, etc.) help a lot

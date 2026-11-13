@@ -8,11 +8,16 @@ package com.volytrafly.modules.movement.volytrafly;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.PlayerMoveEvent;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
+//#if MC>=260100
 import meteordevelopment.meteorclient.events.meteor.KeyInputEvent;
+import meteordevelopment.meteorclient.mixininterface.IVec3;
+//#else
+//$$ import meteordevelopment.meteorclient.events.meteor.KeyEvent;
+//$$ import meteordevelopment.meteorclient.mixininterface.IVec3d;
+//#endif
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.mixininterface.IVec3;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -42,7 +47,9 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.KeyMapping;
+//#if MC>=260300
 import net.minecraft.world.item.component.SwingAnimation;
+//#endif
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.component.DataComponents;
@@ -1391,9 +1398,17 @@ public class VolytraFly extends Module {
                 // ramped/held speed even though you never actually stopped moving. Just
                 // suppress this tick's horizontal movement.
                 assistantFlag(AssistantSituation.UNLOADED_CHUNKS);
+                //#if MC>=260100
                 ((IVec3) event.movement).meteor$set(0, velY, 0);
+                //#else
+                //$$ ((IVec3d) event.movement).meteor$set(0, velY, 0);
+                //#endif
             } else {
+                //#if MC>=260100
                 ((IVec3) event.movement).meteor$set(velX, velY, velZ);
+                //#else
+                //$$ ((IVec3d) event.movement).meteor$set(velX, velY, velZ);
+                //#endif
             }
         } else {
             mappingWaitingForChunks = false;
@@ -1411,7 +1426,11 @@ public class VolytraFly extends Module {
             BlockHitResult hitResult = world.clip(raycastContext);
             if (hitResult.getType() == HitResult.Type.BLOCK) {
                 assistantFlag(AssistantSituation.NO_CRASH);
+                //#if MC>=260100
                 ((IVec3) event.movement).meteor$set(0, velY, 0);
+                //#else
+                //$$ ((IVec3d) event.movement).meteor$set(0, velY, 0);
+                //#endif
             }
         }
 
@@ -1564,7 +1583,13 @@ public class VolytraFly extends Module {
         boolean autonavMode = autonavActive && autonav.get();
         boolean highwayMode = autohighway.get() && highwayRelaunchArmed;
 
-        if ((!autonavMode && !highwayMode) || mc.level == null || mc.gui.screen() != null || mc.isPaused()) {
+        if ((!autonavMode && !highwayMode) || mc.level == null || (
+//#if MC>=260200
+            mc.gui.screen() != null
+//#else
+//$$             mc.screen != null
+//#endif
+            ) || mc.isPaused()) {
             relaunchAttempts = 0;
             return;
         }
@@ -1713,7 +1738,9 @@ public class VolytraFly extends Module {
                 // 26.3 moved the position packet out of tick() into sendChanges(), which the game
                 // only calls once per game tick, so each extra tick has to send its own
                 if (isOverdrivePacketSane(player)) {
+                    //#if MC>=260300
                     if (!skipExtraPackets) player.sendChanges();
+//#endif
                 } else {
                     // Invalid state: skip the packet and stop the timer for this tick, silently
                     overdriveCarry = 0;
@@ -1844,7 +1871,11 @@ public class VolytraFly extends Module {
         int x = (mc.getWindow().getGuiScaledWidth() - mc.font.width(text)) / 2;
         int y = mc.getWindow().getGuiScaledHeight() / 2 + 20;
 
+        //#if MC>=260100
         event.graphics.text(mc.font, text, x, y, orange, true);
+//#else
+//$$         event.drawContext.drawString(mc.font, text, x, y, orange, true);
+//#endif
     }
 
     /**
@@ -1893,7 +1924,11 @@ public class VolytraFly extends Module {
      */
     @SuppressWarnings("unused") // called by the event bus
     @EventHandler
+    //#if MC>=260100
     private void onKeyEvent(KeyInputEvent event) {
+//#else
+//$$     private void onKeyEvent(KeyEvent event) {
+//#endif
         if (event.action != KeyAction.Press) return;
 
         if (autoPilotKeybind.get().matches(event.input)) toggleWithFeedback(autoPilot, "Autopilot");
@@ -1925,7 +1960,11 @@ public class VolytraFly extends Module {
 
     /** 26.3 made swing() take a SwingAnimation; fireworks use the default one. */
     private static void swingHand(Player player, InteractionHand hand) {
+        //#if MC>=260300
         player.swing(hand, SwingAnimation.DEFAULT, false);
+//#else
+//$$         player.swing(hand, false);
+//#endif
     }
 
     private void autoTakeoff() {
@@ -2693,7 +2732,19 @@ public class VolytraFly extends Module {
         assistantMarkActive();
         assistantSay("map-set-" + blockX + "," + blockZ, false, true, "Got it! Flying to " + blockX + ", " + blockZ);
 
-        if (autonavCloseMap.get() && mc.gui.screen() != null) mc.gui.setScreen(null);
+        if (autonavCloseMap.get() && (
+//#if MC>=260200
+            mc.gui.screen() != null
+//#else
+//$$             mc.screen != null
+//#endif
+            )) {
+//#if MC>=260200
+            mc.gui.setScreen(null);
+//#else
+//$$             mc.setScreen(null);
+//#endif
+        }
     }
 
     private void cancelAutonav() {
@@ -4558,9 +4609,17 @@ public class VolytraFly extends Module {
      */
     private boolean isKeyPhysicallyPressed(KeyMapping binding) {
         InputConstants.Key key = InputConstants.getKey(binding.saveString());
+//#if MC>=260300
         if (key.getType() != InputConstants.Type.KEYBOARD) return binding.isDown();
+//#else
+//$$         if (key.getType() != InputConstants.Type.KEYSYM) return binding.isDown();
+//#endif
 
+        //#if MC>=260300
         return InputConstants.isKeyDown(key.getValue());
+//#else
+//$$         return InputConstants.isKeyDown(mc.getWindow(), key.getValue());
+//#endif
     }
 
     /**

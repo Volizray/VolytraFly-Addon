@@ -1,0 +1,90 @@
+# Build tool caches (Gradle/Kotlin)
+**/.gradle/
+.kotlin
+build.number
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+.gradletasknamecache
+
+# Build output, packages, and binaries
+*.class
+*.log
+*.ctxt
+.mtj.tmp/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+bin/
+
+# JVM logs (crash logs and application logs)
+hs_err_pid*
+replay_pid*
+**/logs/
+
+# Eclipse-specific configuration and output
+.settings/
+.classpath
+.project
+eclipse/
+.cproject
+.loadpath
+
+# IntelliJ IDEA-specific configuration and output
+.idea/
+.idea_modules/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+.run/
+atlassian-ide-plugin.xml
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# VS Code-specific configuration (ignore personal settings, keep shared settings)
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Project build, runtime, and dependency directories - use **/ for all levels
+**/build/
+**/run/
+**/libs/
+
+# Cross-platform system temporary files
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+# Windows
+ehthumbs.db
+Thumbs.db
+Thumbs.db:encryptable
+$RECYCLE.BIN/
+
+# Generic editor and tool temporary files
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+
+# Environment variable files (ignore sensitive files, keep examples)
+.env
+.env.*
+!.env.example
+
+*profile*
+.agents

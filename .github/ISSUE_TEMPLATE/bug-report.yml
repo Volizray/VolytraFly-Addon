@@ -1,0 +1,124 @@
+name: Bug report
+description: Something in VolytraFly is broken, crashes, or behaves wrongly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Defaults are tuned for **6b6t** — mention the server if it differs.
+        Search existing issues before opening a new one.
+
+  - type: dropdown
+    id: mc-version
+    attributes:
+      label: Minecraft version
+      options:
+        - "1.21.11"
+        - "26.1"
+        - "26.2"
+        - "26.1.1"
+        - "26.1.2"
+        - "26.3"
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: meteor-version
+    attributes:
+      label: Meteor Client version
+      description: Exact Meteor build (e.g. 26.3-SNAPSHOT or a release tag)
+      placeholder: 26.3-SNAPSHOT
+    validations:
+      required: true
+
+  - type: input
+    id: addon-version
+    attributes:
+      label: VolytraFly version / jar name
+      description: Mod version or the jar filename you installed
+      placeholder: 0.1.2 or VolytraFly-26.3-local.jar
+    validations:
+      required: true
+
+  - type: input
+    id: server
+    attributes:
+      label: Server / environment
+      description: e.g. 6b6t, singleplayer, another anarchy server, or a test world
+      placeholder: 6b6t
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part is affected?
+      multiple: true
+      options:
+        - General flight (speed / acceleration / rubberband cap)
+        - Mapping (chunk load pause)
+        - Building Mode
+        - Bypass Mode
+        - Player Avoidance
+        - Landing / Anti-slam
+        - Inventory (elytra swap / fireworks / chest-swap)
+        - Autopilot
+        - Autohighway
+        - Autonav
+        - Overdrive
+        - HUD (Speedometer / Mode Lights / Assistant / Elytra Fuel)
+        - Visuals (Future Sight / Autonav route / CRT)
+        - Xaero's map click → Autonav
+        - Crash / freeze / disconnect
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps from a clean state if possible
+      placeholder: |
+        1. Enable VolytraFly with defaults
+        2. Take off with elytra + fireworks
+        3. Enable Autonav and set target on Xaero map
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: settings
+    attributes:
+      label: Relevant settings
+      description: Any non-default VolytraFly settings (or say "defaults")
+      placeholder: defaults / list changed options
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / crash report
+      description: Latest.log snippet, crash report, or screenshot text. Remove tokens/passwords.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Extra context
+      description: Other mods (especially Xaero's), anti-cheat notes, video link, etc.

@@ -5,10 +5,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.MouseHandler;
+//#if MC>=260300
 import org.lwjgl.sdl.SDLMouse;
 import org.lwjgl.system.MemoryStack;
 
 import java.nio.FloatBuffer;
+//#endif
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -56,7 +58,11 @@ public final class XaeroMapClicks {
      * clicked (pressed and released without dragging) on the map screen, otherwise null.
      */
     public Click poll(Minecraft mc, int button) {
+        //#if MC>=260200
         Screen screen = mc.gui.screen();
+//#else
+//$$         Screen screen = mc.screen;
+//#endif
         if (screen == null || !isMapScreen(screen)) {
             pressed = false;
             logUnrecognisedXaeroScreen(screen);
@@ -67,6 +73,7 @@ public final class XaeroMapClicks {
         // numbered 1 = left, 2 = middle, 3 = right, the same as InputConstants.MOUSE_BUTTON_*), and
         // also accept vanilla's own pressed flags as a backup.
         MouseHandler mouse = mc.mouseHandler;
+//#if MC>=260300
         boolean sdlDown;
         double sdlCursorX;
         double sdlCursorY;
@@ -86,6 +93,13 @@ public final class XaeroMapClicks {
             : mouse.isMiddlePressed();
         boolean down = sdlDown || vanillaDown;
         double[] cursorX = {sdlCursorX}, cursorY = {sdlCursorY};
+//#else
+//$$         boolean vanillaDown = button == InputConstants.MOUSE_BUTTON_LEFT ? mouse.isLeftPressed()
+//$$             : button == InputConstants.MOUSE_BUTTON_RIGHT ? mouse.isRightPressed()
+//$$             : mouse.isMiddlePressed();
+//$$         boolean down = vanillaDown;
+//$$         double[] cursorX = {mouse.xpos()}, cursorY = {mouse.ypos()};
+//#endif
 
         if (down) {
             if (!pressed) {

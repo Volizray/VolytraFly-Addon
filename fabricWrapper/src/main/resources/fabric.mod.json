@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_wrapper_id}",
+  "version": "${mod_version}",
+  "icon": "assets/${mod_wrapper_id}/icon.png",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": [
+    "Volizray"
+  ],
+  "contact": {
+    "homepage": "${mod_homepage}",
+    "sources": "${mod_sources}"
+  },
+  "license": "${mod_license}",
+  "environment": "client",
+  "entrypoints": {},
+  "depends": {
+    "meteor-client": "*"
+  }
+}

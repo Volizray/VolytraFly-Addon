@@ -1,0 +1,72 @@
+name: HUD / visuals
+description: Speedometer, mode lights, assistant, fuel HUD, Future Sight, Autonav route, or CRT effect issues
+title: "[HUD]: "
+labels: ["hud"]
+body:
+  - type: dropdown
+    id: mc-version
+    attributes:
+      label: Minecraft version
+      options:
+        - "1.21.11"
+        - "26.1.x"
+        - "26.2"
+        - "26.3"
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: meteor-version
+    attributes:
+      label: Meteor Client version
+      placeholder: 26.3-SNAPSHOT
+    validations:
+      required: true
+
+  - type: dropdown
+    id: element
+    attributes:
+      label: HUD / visual element
+      multiple: true
+      options:
+        - Speedometer
+        - Mode Lights
+        - Volytra Assistant
+        - Elytra Fuel
+        - Future Sight
+        - Autonav route
+        - CRT effect
+        - Layout / positioning
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Issue type
+      options:
+        - Not showing when it should
+        - Showing when it should not
+        - Wrong values / text
+        - Wrong position / scale / overlap
+        - Performance / lag
+        - Render glitch / z-fight
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Details
+      description: What you expected vs what you got; Meteor HUD editor notes if relevant
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot notes
+      description: Paste links or describe what a screenshot would show
