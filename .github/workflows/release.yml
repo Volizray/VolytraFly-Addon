@@ -1,0 +1,62 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_set:
+        description: "all = full fabricWrapper; or a single MC version"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - 26.3
+          - 26.2
+          - 26.1
+          - 1.21.11
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.version_set }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: "25"
+          distribution: "temurin"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build
+        env:
+          IS_THIS_RELEASE: "true"
+          TARGET_MC_VERSIONS: ${{ inputs.version_set == 'all' && '1.21.11,26.1,26.2,26.3' || inputs.version_set }}
+        run: |
+          if [ "${{ inputs.version_set }}" = "all" ]; then
+            ./gradlew :fabricWrapper:build --stacktrace --console=plain
+          else
+            ./gradlew :${{ inputs.version_set }}:buildAndCollect --stacktrace --console=plain
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VolytraFly-release-${{ inputs.version_set }}
+          path: |
+            fabricWrapper/build/libs/**
+            build/libs/**
+          if-no-files-found: error
+          retention-days: 30

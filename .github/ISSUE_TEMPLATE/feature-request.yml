@@ -1,0 +1,68 @@
+name: Feature request
+description: Suggest a new mode, setting, HUD element, or quality-of-life improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem first, then the idea. Features aimed at **6b6t elytra flight** are highest priority.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature category
+      options:
+        - Flight core (speed, acceleration, rubberband, safety)
+        - Mode (new mode or change to Building / Bypass / Overdrive / etc.)
+        - Avoidance / pathing (players, obstacles, highways)
+        - Autonav / Autopilot / Autohighway
+        - Inventory / elytra / fireworks
+        - HUD / visuals
+        - Keybinds / UX
+        - Multi-version / build / packaging
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mc-version
+    attributes:
+      label: Target Minecraft versions
+      multiple: true
+      options:
+        - "1.21.11"
+        - "26.1.x"
+        - "26.2"
+        - "26.3"
+        - All supported
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What is awkward, missing, or unsafe with current VolytraFly behaviour?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How should it work in-game? Include settings/keybinds if you have ideas.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, existing settings, or other mods you tried
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Extra context
+      description: Server, clips, mock UI, related issues

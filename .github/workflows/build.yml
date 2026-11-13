@@ -1,0 +1,87 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'versions/**'
+      - 'fabricWrapper/**'
+      - 'buildSrc/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'versions/**'
+      - 'fabricWrapper/**'
+      - 'buildSrc/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: "25"
+          distribution: "temurin"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Loom workspace
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./.gradle/loom-cache
+            ./libs
+            ./build/libs
+          key: ${{ runner.os }}-loom-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', '**/*.gradle.kts', '**/gradle.properties', 'buildSrc/**') }}
+          restore-keys: |
+            ${{ runner.os }}-loom-
+
+      - name: Make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build fabricWrapper subproject
+        run: ./gradlew :fabricWrapper:build --stacktrace --console=plain
+
+      - name: Capture versionpack
+        uses: actions/upload-artifact@v4
+        with:
+          name: versionpack
+          path: fabricWrapper/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Capture standalone version JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-jars
+          path: fabricWrapper/build/libs/jars/
+          if-no-files-found: error
+          retention-days: 7
